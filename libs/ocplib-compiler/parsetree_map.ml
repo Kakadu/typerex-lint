@@ -1141,7 +1141,7 @@ and extension_constructor_kind =
     } in
     Map.leave_open_description o
 #else
-  and map_open_info (type a b) (f: a -> b) (o: a open_infos) : b open_infos =
+  and map_open_info:  'a 'b .  ('a -> 'b) -> 'a open_infos -> 'b open_infos = fun f o ->
     (* TODO: add enter/leave open info *)
     { o with popen_expr = f o.popen_expr }
   and map_open_description (o: open_description) = map_open_info Fun.id o
