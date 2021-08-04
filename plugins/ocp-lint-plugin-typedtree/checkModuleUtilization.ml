@@ -45,8 +45,8 @@ let path_parent path =
 
 let list_of_path path =
   let rec aux acc = function
-    | Path.Pident {Ident.name = name; _} ->
-       name :: acc
+    | Path.Pident id ->
+       (Ident.name id) :: acc
     | Path.Pdot(ppath, name, _) ->
        aux (name :: acc) ppath
     | _ ->

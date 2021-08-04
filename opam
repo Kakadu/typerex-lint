@@ -27,7 +27,7 @@ install: [
   [ make "install" ]
 ]
 remove: [
-  [ "make" "uninstall"   ]
+  [ make "uninstall"   ]
 ]
 depends: [
      "js_of_ocaml"
@@ -43,4 +43,4 @@ depends: [
      "tyxml"
      "yojson"
 ]
-available: [ocaml-version >= "4.02.3"]
+available: [ocaml-version >= "4.07"]
