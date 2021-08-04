@@ -23,6 +23,10 @@ open Parsetree
 
 module type IteratorArgument = sig
 
+#if OCAML_VERSION >= "4.10"
+  val enter_type_exception : type_exception -> unit
+  val leave_type_exception : type_exception -> unit
+#endif
 #if OCAML_VERSION >= "4.01" && OCAML_VERSION < "4.02"
    val enter_exception_declaration : exception_declaration -> unit
    val leave_exception_declaration : exception_declaration -> unit

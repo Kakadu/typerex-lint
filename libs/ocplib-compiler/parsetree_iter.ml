@@ -32,6 +32,10 @@ open Parsetree
 
 module type IteratorArgument = sig
 
+#if OCAML_VERSION >= "4.10"
+  val enter_type_exception : type_exception -> unit
+  val leave_type_exception : type_exception -> unit
+#endif
 #if OCAML_VERSION < "4.02"
    val enter_exception_declaration : exception_declaration -> unit
    val leave_exception_declaration : exception_declaration -> unit
@@ -42,10 +46,6 @@ module type IteratorArgument = sig
 #else
   val enter_type_extension : type_extension -> unit
   val leave_type_extension : type_extension -> unit
-#if OCAML_VERSION >= "4.10"
-  val enter_type_exception : type_exception -> unit
-  val leave_type_exception : type_exception -> unit
-#endif
   val enter_extension_constructor : extension_constructor -> unit
   val leave_extension_constructor : extension_constructor -> unit
   val enter_module_type_declaration : module_type_declaration -> unit
@@ -761,8 +761,14 @@ module MakeIterator(Iter : IteratorArgument) : sig
           List.iter (fun (_s, _attr, ct) -> iter_core_type ct) list
 #else
         | Ptyp_object (list, _close_flag) ->
-           List.iter (function
+           List.iter (fun ofield ->
+#if OCAML_VERSION < "4.10"
+                      match ofield with
                       | Otag (_s, _attr, ct) -> iter_core_type ct
+#else
+                      match ofield.pof_desc with
+                      | Otag (_s, ct) -> iter_core_type ct
+#endif
                       | Oinherit ct -> iter_core_type ct
                      ) list
 #endif
@@ -799,8 +805,12 @@ module MakeIterator(Iter : IteratorArgument) : sig
 
 
     and iter_row_field rf =
+#if OCAML_VERSION < "4.10"
       match rf with
-#if OCAML_VERSION < "4.02"
+#else
+      match rf.prf_desc with
+#endif
+#if OCAML_VERSION < "4.02" || OCAML_VERSION >= "4.02"
       | Rtag (_label, bool, list) ->
           List.iter iter_core_type list
 #else
@@ -888,7 +898,10 @@ module MakeIterator(Iter : IteratorArgument) : sig
   end
 
 module DefaultIteratorArgument = struct
-
+#if OCAML_VERSION >= "4.10"
+  let enter_type_exception _ = ()
+  let leave_type_exception _ = ()
+#endif
 #if OCAML_VERSION < "4.02"
       let enter_exception_declaration _ = ()
       let leave_exception_declaration _ = ()
