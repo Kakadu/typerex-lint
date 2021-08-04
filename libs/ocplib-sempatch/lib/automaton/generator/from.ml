@@ -297,7 +297,7 @@ struct
     [
       H.Str.module_
         (H.Mb.mk
-           (Location.mknoloc "From")
+           (Location.mknoloc (Some "From"))
            (H.Mod.structure
               [
                 overrided

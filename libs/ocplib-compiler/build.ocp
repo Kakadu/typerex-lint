@@ -23,6 +23,7 @@ begin library "ocplib-compiler"
      "parsetree_iter.ml"
      "parsetree_map.ml"
      "typedtree_iter.ml"
+     "typedtreeIter.ml"
      (* "typedtree_map.ml"  TODO: cago does not compile *)
      "lexer_iter.ml"
   ]

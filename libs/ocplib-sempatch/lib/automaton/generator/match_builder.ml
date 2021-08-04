@@ -242,7 +242,7 @@ struct
     [
       H.Str.module_
         (H.Mb.mk
-           (Location.mknoloc "Match_")
+           (Location.mknoloc (Some "Match_"))
            (H.Mod.structure module_body))
     ]
 end

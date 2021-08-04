@@ -24,6 +24,11 @@
 
 open Parsetree
 
+#if OCAML_VERSION < "4.10"
+let may_map f = function Some x -> Some (f x) | None -> None
+#else
+let may_map = Option.map
+#endif
 
 module type MapArgument = sig
 
@@ -1070,7 +1075,7 @@ and extension_constructor_kind =
      pld_attributes;
     } in
     Map.leave_label_declaration l
-
+#if OCAML_VERSION < "4.10"
   and map_open_description o =
     let {
      popen_lid;
@@ -1085,7 +1090,13 @@ and extension_constructor_kind =
      popen_attributes;
     } in
     Map.leave_open_description o
-
+#else
+  and map_open_info f o =
+    (* TODO: add enter/leave open info *)
+    { o with popen_expr = f o.popen_expr }
+  and map_open_description o = map_open_info map_module_expr p
+  and map_open_declaration o = map_open_info map_module_expr o
+#endif
   and map_module_binding m =
     let {
       pmb_name;

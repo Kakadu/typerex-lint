@@ -20,6 +20,10 @@
 
 include TypedtreeIter
 
+#if OCAML_VERSION >= "4.10"
+let misc_may = Option.iter
+#endif
+
 let iter_structure iterator cmt =
   let open Cmt_format in
   let module IA = (val iterator : IteratorArgument) in
