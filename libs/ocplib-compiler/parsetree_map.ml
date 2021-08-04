@@ -208,7 +208,13 @@ end = struct
 #if OCAML_VERSION < "4.02"
       | Pstr_open (ovf, lid) -> Pstr_open (ovf, lid)
 #else
+#if OCAML_VERSION < "4.10"
       | Pstr_open m -> Pstr_open (map_open_description m)
+#else
+      | Pstr_open m ->
+        let (_: open_declaration) = m in
+        Pstr_open (map_open_declaration m)
+#endif
 #endif
 
 
@@ -634,12 +640,19 @@ end = struct
     let ci_expr = map_class_type cd.pci_expr in
     Map.leave_class_type_declaration { cd with pci_expr = ci_expr }
 
+#if OCAML_VERSION >= "4.10"
+  and map_functor_parameter = function
+    | Unit  -> Unit
+    | Named(loc, mt) -> Named (loc, map_module_type mt)
+#endif
+
   and map_module_type mty =
     let mty = Map.enter_module_type mty in
     let mty_desc =
       match mty.pmty_desc with
         Pmty_ident _lid -> mty.pmty_desc
       | Pmty_signature sg -> Pmty_signature (map_signature sg)
+#if OCAML_VERSION < "4.10"
       | Pmty_functor (name, mtype1, mtype2) ->
         Pmty_functor (name,
 #if OCAML_VERSION >= "4.02"
@@ -647,6 +660,10 @@ end = struct
 #endif
                       map_module_type mtype1,
                       map_module_type mtype2)
+#else
+      | Pmty_functor (fparam, mtype) ->
+        Pmty_functor (map_functor_parameter fparam, map_module_type mtype)
+#endif
       | Pmty_with (mtype, list) ->
         Pmty_with (map_module_type mtype,
 #if OCAML_VERSION < "4.02"
@@ -700,6 +717,7 @@ end = struct
       match mexpr.pmod_desc with
         Pmod_ident (_lid) -> mexpr.pmod_desc
       | Pmod_structure st -> Pmod_structure (map_structure st)
+#if OCAML_VERSION < "4.10"
       | Pmod_functor (name, mtype, mexpr) ->
         Pmod_functor (name,
 #if OCAML_VERSION >= "4.02"
@@ -707,6 +725,11 @@ end = struct
 #endif
                       map_module_type mtype,
                       map_module_expr mexpr)
+#else
+      | Pmod_functor (param, mexpr) ->
+        Pmod_functor (map_functor_parameter param, map_module_expr mexpr)
+#endif
+
       | Pmod_apply (mexp1, mexp2) ->
         Pmod_apply (map_module_expr mexp1,
                     map_module_expr mexp2)
@@ -745,7 +768,10 @@ end = struct
 #if OCAML_VERSION >= "4.02"
       | Pcl_extension _ -> cexpr.pcl_desc
 #endif
-#if OCAML_VERSION >= "4.06"
+#if OCAML_VERSION >= "4.10"
+      | Pcl_open (od, ct) ->
+         Pcl_open (map_open_description od, map_class_expr ct)
+#elif OCAML_VERSION >= "4.06"
       | Pcl_open (ovflag, lid, ct) ->
          Pcl_open (ovflag, lid, map_class_expr ct)
 #endif
@@ -767,7 +793,10 @@ end = struct
         Pcty_arrow (label, map_core_type ct, map_class_type cl)
       | Pcty_extension _ -> ct.pcty_desc
 #endif
-#if OCAML_VERSION >= "4.06"
+#if OCAML_VERSION >= "4.10"
+      | Pcty_open (od, ct) ->
+         Pcty_open (map_open_description od, map_class_type ct)
+#elif OCAML_VERSION >= "4.06"
       | Pcty_open (ovflag, lid, ct) ->
          Pcty_open (ovflag, lid, map_class_type ct)
 #endif
@@ -842,9 +871,15 @@ end = struct
           (s, attrs, map_core_type ct)) list, closed)
 #else
       | Ptyp_object (list, closed) ->
-         Ptyp_object (List.map (function
-           | Otag (s,attrs,ct) -> Otag (s, attrs, map_core_type ct)
-           | Oinherit ct -> Oinherit (map_core_type ct)
+         Ptyp_object (List.map (fun of_ ->
+#if OCAML_VERSION < "4.10"
+          match of_ with
+          | Otag (s,attrs,ct) -> Otag (s, attrs, map_core_type ct)
+#else
+          match of_.pof_desc with
+          | Otag (s,ct) -> {of_ with pof_desc = Otag (s, map_core_type ct) }
+#endif
+           | Oinherit ct -> {of_ with pof_desc = Oinherit (map_core_type ct) }
           ) list, closed)
 #endif
       | Ptyp_class (lid, list) ->
@@ -875,11 +910,16 @@ end = struct
 #if OCAML_VERSION < "4.02"
     | Rtag (label, bool, list) ->
         Rtag (label, bool, List.map map_core_type list)
-#else
+    | Rinherit ct -> Rinherit (map_core_type ct)
+#elif OCAML_VERSION < "4.10"
     | Rtag (label, attrs, bool, list) ->
         Rtag (label, attrs, bool, List.map map_core_type list)
-#endif
     | Rinherit ct -> Rinherit (map_core_type ct)
+#else
+    | {prf_desc = Rtag (label, bool, list); _ } ->
+        { rf with prf_desc = Rtag (label, bool, List.map map_core_type list) }
+    | {prf_desc = Rinherit ct } -> { rf with prf_desc = Rinherit (map_core_type ct) }
+#endif
 
   and map_class_field cf =
     let cf = Map.enter_class_field cf in
@@ -974,10 +1014,14 @@ end = struct
      pc_rhs = map_expression pc_rhs;
     } in
     Map.leave_case case
-
+#if OCAML_VERSION < "4.10"
   and map_exception_declaration decl =
     let decl = map_extension_constructor decl in
     decl
+#else
+  and map_exception_declaration decl =
+    { decl with ptyexn_constructor = map_extension_constructor decl.ptyexn_constructor }
+#endif
 
   and map_type_extension c =
    let {
@@ -986,6 +1030,9 @@ end = struct
      ptyext_constructors;
      ptyext_private;
      ptyext_attributes;
+#if OCAML_VERSION >= "4.10"
+     ptyext_loc;
+#endif
    } = Map.enter_type_extension c in
    let c = {
      ptyext_params =
@@ -995,6 +1042,9 @@ end = struct
      ptyext_path;
      ptyext_private;
      ptyext_attributes;
+#if OCAML_VERSION >= "4.10"
+     ptyext_loc;
+#endif
    } in
    Map.leave_type_extension c
 
@@ -1091,11 +1141,11 @@ and extension_constructor_kind =
     } in
     Map.leave_open_description o
 #else
-  and map_open_info f o =
+  and map_open_info (type a b) (f: a -> b) (o: a open_infos) : b open_infos =
     (* TODO: add enter/leave open info *)
     { o with popen_expr = f o.popen_expr }
-  and map_open_description o = map_open_info map_module_expr p
-  and map_open_declaration o = map_open_info map_module_expr o
+  and map_open_description (o: open_description) = map_open_info Fun.id o
+  and map_open_declaration (o: open_declaration) = map_open_info map_module_expr o
 #endif
   and map_module_binding m =
     let {
