@@ -42,6 +42,10 @@ module type IteratorArgument = sig
 #else
   val enter_type_extension : type_extension -> unit
   val leave_type_extension : type_extension -> unit
+#if OCAML_VERSION >= "4.10"
+  val enter_type_exception : type_exception -> unit
+  val leave_type_exception : type_exception -> unit
+#endif
   val enter_extension_constructor : extension_constructor -> unit
   val leave_extension_constructor : extension_constructor -> unit
   val enter_module_type_declaration : module_type_declaration -> unit
@@ -157,7 +161,11 @@ module MakeIterator(Iter : IteratorArgument) : sig
         | Pstr_module mbind -> iter_module_binding mbind
         | Pstr_primitive v -> iter_value_description v
         | Pstr_typext type_extension -> iter_type_extension type_extension
+#if OCAML_VERSION < "4.10"
         | Pstr_exception ext -> iter_extension_constructor ext
+#else
+        | Pstr_exception ext -> iter_type_exception ext
+#endif
         | Pstr_recmodule list -> List.iter iter_module_binding list
         | Pstr_modtype mtd -> iter_module_type_declaration mtd
         | Pstr_extension (ext, _) -> iter_extension ext
@@ -219,8 +227,8 @@ module MakeIterator(Iter : IteratorArgument) : sig
     and iter_module_binding x =
       iter_module_expr x.pmb_expr
 
-    and iter_extension_constructor ext =
-      Iter.enter_extension_constructor ext;
+    and iter_extension_constructor (ext: Parsetree.extension_constructor) =
+      Iter.enter_extension_constructor (ext: Parsetree.extension_constructor);
       begin match ext.pext_kind with
       | Pext_decl(args, ret) ->
           iter_constructor_arguments args;
@@ -244,6 +252,12 @@ module MakeIterator(Iter : IteratorArgument) : sig
       List.iter iter_extension_constructor ptyext.ptyext_constructors;
       Iter.leave_type_extension ptyext
 
+#if OCAML_VERSION >= "4.10"
+    and iter_type_exception ptyexc =
+      Iter.enter_type_exception ptyexc;
+      iter_extension_constructor ptyexc.ptyexn_constructor;
+      Iter.leave_type_exception ptyexc
+#endif
     and iter_type_parameter (ct, _variance) =
       iter_core_type ct
 
@@ -260,6 +274,11 @@ module MakeIterator(Iter : IteratorArgument) : sig
       iter_constructor_arguments cd.pcd_args;
       may_iter iter_core_type cd.pcd_res;
 
+#endif
+
+#if OCAML_VERSION >= "4.10"
+    and iter_open_declaration od =
+      iter_module_expr od.popen_expr
 #endif
     and iter_value_description v =
       Iter.enter_value_description v;
@@ -404,8 +423,14 @@ module MakeIterator(Iter : IteratorArgument) : sig
           iter_expression e
 #endif
         | Pexp_constant _cst -> ()
+#if OCAML_VERSION <= "4.10"
         | Pexp_open (_ovflag, _path, e) ->
           iter_expression e
+#else
+        | Pexp_open (od, e) ->
+          iter_open_declaration od;
+          iter_expression e
+#endif
         | Pexp_poly (e, cto) ->
           iter_expression e;
           may_iter iter_core_type cto
@@ -486,7 +511,12 @@ module MakeIterator(Iter : IteratorArgument) : sig
 #else
         | Psig_value v -> iter_value_description v
         | Psig_typext ext -> iter_type_extension ext
+#if OCAML_VERSION < "4.10"
         | Psig_exception exn -> iter_extension_constructor exn
+#else
+        | Psig_exception exn -> iter_type_exception exn
+
+#endif
         | Psig_module md -> iter_module_type md.pmd_type
         | Psig_recmodule list ->
           List.iter (fun md -> iter_module_type md.pmd_type) list
@@ -539,9 +569,18 @@ module MakeIterator(Iter : IteratorArgument) : sig
         | Pmty_typeof mexpr ->
           iter_module_expr mexpr
 #else
+#if  OCAML_VERSION < "4.10"
         | Pmty_functor (_loc, mtypeo, mtype) ->
           may_iter iter_module_type mtypeo;
           iter_module_type mtype
+#else
+        | Pmty_functor (Unit, mtype) ->
+          iter_module_type mtype
+        | Pmty_functor (Named (_,mtype0), mtype) ->
+          iter_module_type mtype0;
+          iter_module_type mtype
+
+#endif
         | Pmty_with (mtype, withc) ->
           iter_module_type mtype;
           List.iter iter_with_constraint withc
@@ -582,9 +621,17 @@ module MakeIterator(Iter : IteratorArgument) : sig
           iter_module_type mtype;
           iter_module_expr mexpr
 #else
+#if OCAML_VERSION < "4.10"
         | Pmod_functor (_loc, mtypeo, mexpr) ->
           may_iter iter_module_type mtypeo;
           iter_module_expr mexpr
+#else
+        | Pmod_functor (Unit, mexpr) ->
+          iter_module_expr mexpr
+        | Pmod_functor (Named(_loc, mtypeo), mexpr) ->
+          iter_module_type mtypeo;
+          iter_module_expr mexpr
+#endif
         | Pmod_extension ext -> iter_extension ext
 #endif
         | Pmod_apply (mexp1, mexp2) ->
@@ -629,7 +676,12 @@ module MakeIterator(Iter : IteratorArgument) : sig
         | Pcl_constr (_, tyl) ->
           List.iter iter_core_type tyl
 #if OCAML_VERSION >= "4.06"
+#if OCAML_VERSION < "4.10"
       | Pcl_open (ovflag, lid, ct) -> iter_class_expr ct
+#else
+      | Pcl_open (_od, ct) -> iter_class_expr ct
+
+#endif
 #endif
       end;
       Iter.leave_class_expr cexpr;
@@ -652,7 +704,11 @@ module MakeIterator(Iter : IteratorArgument) : sig
         | Pcty_extension ext -> iter_extension ext
 #endif
 #if OCAML_VERSION >= "4.06"
+#if OCAML_VERSION >= "4.10"
+      | Pcty_open (_, ct) -> iter_class_type ct
+#else
       | Pcty_open (ovflag, lid, ct) -> iter_class_type ct
+#endif
 #endif
       end;
       Iter.leave_class_type ct;
